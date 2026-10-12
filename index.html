@@ -509,6 +509,8 @@ details.caps .form-grid{margin-top:10px}
 .gradechip{font-family:var(--font-display);font-size:18px;padding:4px 12px;border-radius:999px;border:2px solid var(--wood);background:var(--leaf);color:#fff}
 .gradechip.g-C{background:var(--gold);color:var(--gold-ink)} .gradechip.g-D{background:var(--amber)} .gradechip.g-E,.gradechip.g-F{background:var(--berry)}
 .hint.bad{color:var(--berry)}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:15px;cursor:pointer}.chk input{width:20px;height:20px;margin-top:2px;flex:none}
+.modal h3{font-family:var(--font-display);font-size:14px;margin:6px 0 0}
 </style>
 </head>
 <body>
@@ -2120,7 +2122,9 @@ function calendarPanel(){
   const due = dueList(st, addDays(t, 14)); const pays = paydays(t, addDays(t, 14), st).map(d => ({ type:"pay", name:"Payday", date:d, amount:n0(st.profile.payAmount), key:"pay" + d }));
   const upcoming = due.concat(pays).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   const recapBan = parse(t).getDate() <= 7 && st.log.some(e => (e.date || "").slice(0, 7) === prevYM()) ? `<div class="frame pad section"><div class="nextup"><span class="ti lg" style="background:#fff1b3">${iconCanvas("star", 26, "")}</span><div><span class="lab">NEW</span><b class="nm">Your ${MONTHS[parse(prevYM() + "-01").getMonth()]} recap is ready</b><span>See what you saved, paid and broke last month.</span></div><div class="r"><button class="btn small" data-act="recap" data-ym="${prevYM()}">Open recap</button></div></div></div>` : "";
-  return recapBan + `<div class="frame pad section">
+  const lateNow = mode === "play" ? dueList(st, addDays(t, -1)) : [];
+  const freshBan = lateNow.length >= 3 ? `<div class="frame pad section"><div class="nextup"><span class="ti lg" style="background:#d9f5c9">${iconCanvas("sprout", 26, "")}</span><div><span class="lab">${lateNow.length} PAST DUE DATES</span><b class="nm">Haven't been logging? Start fresh</b><span>Keep everything you set up and count from today.</span></div><div class="r"><button class="btn small" data-act="open" data-kind="fresh">Start fresh</button></div></div></div>` : "";
+  return freshBan + recapBan + `<div class="frame pad section">
       <div class="row spread"><h2>Next 2 weeks</h2><span class="muted">${due.length ? fmt(sum(due, e => e.amount)) + " to pay" : "Nothing to pay"}</span></div>
       ${due.some(e => e.date < t) ? `<div class="bonus"><p><b>${due.filter(e => e.date < t).length} item${due.filter(e => e.date < t).length > 1 ? "s show" : " shows"} as late.</b> If you already paid ${due.filter(e => e.date < t).length > 1 ? "them" : "it"} outside the app, mark ${due.filter(e => e.date < t).length > 1 ? "them" : "it"} done. No money will move.</p><div class="row"><button class="btn small" data-act="catch-up">Mark late items as already paid</button></div></div>` : ""}
       <p class="hint">Tap <b>Pay</b> to pay from one of your accounts, or <b>Done</b> if you already paid it some other way. Done only marks it paid and moves no money.</p>
@@ -2358,6 +2362,9 @@ function stuffPanel(){
       <label class="fld w2" for="sg-name"><span>Goal name</span><input id="sg-name" data-gf="name" type="text" value="${esc(st.goal.name)}"></label>
       <label class="fld" for="sg-amt"><span>Target</span><input id="sg-amt" data-gf="amount" type="number" inputmode="decimal" step="any" min="0" value="${n0(st.goal.amount) || ""}" placeholder="0"></label>
       <label class="fld" for="sg-bank"><span>Saved in</span><select id="sg-bank" data-gf="bank"><option value="">All savings accounts</option>${st.banks.filter(b => b.kind === "savings").map(b => `<option value="${b.id}" ${b.id === st.goal.bank ? "selected" : ""}>${esc(b.name || "Savings")}</option>`).join("")}</select></label></div></div>
+    ${sample ? "" : `<div class="frame pad section"><h2>Start fresh</h2>
+      <p class="hint">Haven't logged in a while? Start counting from today. Your banks, loans, pay-later plans, costs and goals all stay.</p>
+      <div class="row"><button class="btn small" data-act="open" data-kind="fresh">Start fresh from today</button>${st.freshUndo ? `<button class="btn small ghost" data-act="fresh-undo">Undo fresh start (${short(st.freshUndo.at)})</button>` : ""}</div></div>`}
     ${sample ? "" : `<div class="frame pad section"><h2>Backup</h2>
       <p class="hint">Copy a backup of everything you've entered, or paste one back in.</p>
       <div class="row"><button class="btn small" data-act="export">Copy backup</button><button class="btn small" data-act="import">Restore from backup</button><button class="btn small ghost" data-act="reset" id="resetBtn">Start over</button></div>
@@ -2422,6 +2429,7 @@ function openModal(kind, arg){
   closeDlg();
   const st = V(); const box = $("#modalBody"); let html = "";
   if (kind === "profiles"){ box.innerHTML = profilesModal(); $("#modal").hidden = false; paintAvatars(); return; }
+  if (kind === "fresh"){ box.innerHTML = freshHTML(); $("#modal").hidden = false; return; }
   if (kind === "recap"){ box.innerHTML = recapHTML(arg || today().slice(0, 7)); $("#modal").hidden = false; box.querySelectorAll("canvas.pip").forEach(c => drawMap(c, PIP)); paintIcons(box); return; }
   if (kind === "payday"){
     const M = metrics(st); const sv = defaultSaveAcct();
@@ -3102,6 +3110,47 @@ function advisorPanel(){
     <p class="hint">${ADV_NOTE}</p>`;
 }
 
+
+/* ---------- fresh start: count from today, keep everything set up ---------- */
+const pastInstallments = (b, t) => { let n = 0; if (!b.firstDate) return 0; for (let i = 0; i < n0(b.total) && i < 120; i++){ const d = b.freq === "biweekly" ? addDays(b.firstDate, 14 * i) : addMonths(b.firstDate, i); if (d < t) n++; else break; } return n; };
+function freshHTML(){
+  const st = V(); const t = today(); const late = dueList(st, addDays(t, -1));
+  const loans = st.loans.filter(l => n0(l.balance) > 0); const plans = st.bnpl.filter(bnplActive);
+  return `<h2 id="mTitle">Start fresh from today</h2>
+    <p>Pip will start counting from <b>${short(t)}</b>. Everything you set up stays: banks, loans, pay-later plans, monthly costs, goals, your character and XP.</p>
+    ${late.length ? `<p class="hint">${late.length} past due date${late.length > 1 ? "s" : ""} (${fmt(sum(late, e => e.amount))}) will stop showing as late.</p>` : ""}
+    <form id="mform" data-kind="fresh" class="section">
+      ${loans.length ? `<h3>What's left on each loan today?</h3><p class="hint">If you paid some installments outside the app, lower the amount to what you still owe.</p>
+        <div class="form-grid">${loans.map(l => `<label class="fld" for="fr-l-${l.id}"><span>${esc(l.name || "Loan")}</span><input id="fr-l-${l.id}" name="loan:${l.id}" type="number" inputmode="decimal" step="any" min="0" value="${n0(l.balance)}"></label>`).join("")}</div>` : ""}
+      ${plans.length ? `<h3>Pay-later plans</h3><p class="hint">Pip counted the payments whose dates have already passed as paid. Lower a number if you missed one.</p>
+        <div class="form-grid">${plans.map(b => isVar(b)
+          ? `<label class="fld" for="fr-v-${b.id}"><span>${esc(b.name || "Plan")} · left to pay</span><input id="fr-v-${b.id}" name="vbnpl:${b.id}" type="number" inputmode="decimal" step="any" min="0" value="${n0(b.balance) || ""}" placeholder="0"></label>`
+          : `<label class="fld" for="fr-p-${b.id}"><span>${esc(b.name || "Plan")} · payments made (of ${n0(b.total)})</span><input id="fr-p-${b.id}" name="plan:${b.id}" type="number" inputmode="numeric" step="1" min="0" max="${n0(b.total)}" value="${Math.max(n0(b.paidCount), pastInstallments(b, t))}"></label>`).join("")}</div>` : ""}
+      ${st.log.length ? `<label class="chk"><input type="checkbox" name="clearLog"> Also clear my ledger (${st.log.length} entr${st.log.length > 1 ? "ies" : "y"}). Balances stay as they are.</label>` : ""}
+      <p class="hint">Changed your mind later? My stuff has an undo button.</p>
+      <div class="row spread"><button type="button" class="btn small ghost" data-act="close">Cancel</button><button class="btn gold">Start fresh</button></div></form>`;
+}
+function submitFresh(form){
+  const st = V(); const fd = new FormData(form);
+  st.freshUndo = { at: today(), since: st.since, log: st.log.slice(), loans: st.loans.map(l => [l.id, l.balance]), bnpl: st.bnpl.map(b => [b.id, b.paidCount, b.balance, b.balanceSet]) };
+  const val = k => { const v = fd.get(k); return v == null || v === "" ? null : n0(v); };
+  for (const l of st.loans){ const v = val("loan:" + l.id); if (v != null) l.balance = r2(Math.max(0, v)); }
+  for (const b of st.bnpl){
+    const p = val("plan:" + b.id); if (p != null) b.paidCount = Math.max(0, Math.min(n0(b.total), Math.round(p)));
+    const v = val("vbnpl:" + b.id); if (v != null){ b.balance = r2(Math.max(0, v)); b.balanceSet = true; }
+  }
+  if (fd.get("clearLog")) st.log = [];
+  st.since = today();
+  scheduleSave(); closeModal(); render(); burst(128, 70, 24); toast("Fresh start! Pip is counting from today.");
+}
+function undoFresh(){
+  const st = V(); const u = st.freshUndo; if (!u) return;
+  st.since = u.since; st.log = u.log || st.log;
+  for (const [id, bal] of u.loans || []){ const l = st.loans.find(x => x.id === id); if (l) l.balance = bal; }
+  for (const [id, pc, bal, bs] of u.bnpl || []){ const b = st.bnpl.find(x => x.id === id); if (b){ b.paidCount = pc; b.balance = bal; b.balanceSet = bs; } }
+  delete st.freshUndo; scheduleSave(); render(); toast("Fresh start undone. Everything is back the way it was.");
+}
+
 /* ---------- events ---------- */
 document.addEventListener("click", ev => {
   const a = ev.target.closest("[data-act]"); if (!a) return;
@@ -3143,6 +3192,7 @@ document.addEventListener("click", ev => {
       if (tokens(st) < it.cost){ toast(`You need ${it.cost - tokens(st)} more leaves. Earn them by saving, paying on time and logging spending.`); break; }
       st.deco[it.k] = true; st.spentXP = n0(st.spentXP) + it.cost; scheduleSave(); render(); burst(128, 60, 24); toast(`${it.name} built! Go find it in the village.`); break; }
     case "close": closeModal(); break;
+    case "fresh-undo": undoFresh(); break;
     case "mail": openMail(); break;
     case "about-go": { tab = "stuff"; ls.set("coinleaf-tab", tab); closeModal(); render(); const el = $("#aboutSec"); if (el){ el.scrollIntoView({ block:"start", behavior: reduced ? "auto" : "smooth" }); const f = $("#ab-city"); if (f) setTimeout(() => f.focus({ preventScroll:true }), 300); } break; }
     case "ai-report": aiReport(); break;
@@ -3192,7 +3242,7 @@ document.addEventListener("click", ev => {
 $("#modal").addEventListener("click", e => { if (e.target.id === "modal") closeModal(); });
 document.addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.caps")) capsOpen = e.target.open; }, true);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#modal").hidden) closeModal(); });
-document.addEventListener("submit", e => { if (e.target.id === "mform"){ e.preventDefault(); submitModal(e.target); } if (e.target.id === "chatForm"){ e.preventDefault(); const i = $("#chatIn"); const q = i ? i.value : ""; if (i) i.value = ""; aiAsk(q); } });
+document.addEventListener("submit", e => { if (e.target.id === "mform"){ e.preventDefault(); if (e.target.dataset.kind === "fresh") submitFresh(e.target); else submitModal(e.target); } if (e.target.id === "chatForm"){ e.preventDefault(); const i = $("#chatIn"); const q = i ? i.value : ""; if (i) i.value = ""; aiAsk(q); } });
 document.addEventListener("change", e => {
   const t = e.target;
   if (t.id === "ln-freq"){ $("#lnBox").innerHTML = loanFields(t.value); updateLoanPrev(); return; }
