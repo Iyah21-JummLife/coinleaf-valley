@@ -99,7 +99,7 @@ p{margin:0}
 .hud{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}
 .stat{padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .stat .lab{font-family:var(--font-display);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
-.stat .num{font-size:27px;line-height:1.1}
+.stat .num{font-size:27px;line-height:1.1;display:block;white-space:nowrap;overflow:hidden}
 .stat small{font-size:13px;color:var(--ink-soft)}
 .meter{height:8px;background:var(--parch-2);border:2px solid var(--wood);margin-top:4px}
 .meter i{display:block;height:100%;background:var(--leaf)}
@@ -721,7 +721,7 @@ const V = () => (mode === "sample" || mode === "title") ? SAMPLE : S;
 let fmtCache = {};
 function fmt(n, cur){
   cur = cur || (V() && V().profile.currency) || "USD";
-  const whole = Math.abs(n) >= 1000 || Number.isInteger(r2(n));
+  const whole = Number.isInteger(r2(n)); // exact to the centavo; whole amounts skip the .00
   const k = cur + whole;
   try { fmtCache[k] = fmtCache[k] || new Intl.NumberFormat(undefined, { style:"currency", currency:cur, minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: whole ? 0 : 2 }); return fmtCache[k].format(n); }
   catch(e){ return cur + " " + (Math.round(n * 100) / 100).toLocaleString(); }
@@ -2728,7 +2728,16 @@ function render(){
   paintIcons(document);
   paintAvatars();
   renderFoot();
+  fitNums();
 }
+// Exact amounts (with centavos) can be long; shrink a big number until it fits its card.
+function fitNums(){
+  document.querySelectorAll(".stat .num, .nextup .amt").forEach(el => {
+    el.style.fontSize = ""; let fs = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth + 1 && fs > 13){ fs -= 1; el.style.fontSize = fs + "px"; }
+  });
+}
+addEventListener("resize", () => { clearTimeout(window.__fitT); window.__fitT = setTimeout(fitNums, 120); });
 
 /* ---------- advisor: about you, money check-up, valley mail, Pip's brain ---------- */
 const COUNTRIES = [["PH","Philippines"],["US","United States"],["CA","Canada"],["GB","United Kingdom"],["AU","Australia"],["NZ","New Zealand"],["SG","Singapore"],["HK","Hong Kong"],["AE","United Arab Emirates"],["SA","Saudi Arabia"],["QA","Qatar"],["KW","Kuwait"],["JP","Japan"],["OTHER","Somewhere else"]];
