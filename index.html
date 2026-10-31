@@ -16,6 +16,7 @@
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="cloud.js"></script>
+<title>Coinleaf Valley</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap">
@@ -106,9 +107,9 @@ p{margin:0}
 .good{color:var(--leaf)} .warn{color:var(--amber)} .bad{color:var(--berry)}
 
 /* buttons */
-.actions{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.actions{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
 @media (max-width:820px){.actions{grid-template-columns:repeat(3,1fr)}}
-@media (max-width:620px){.actions{grid-template-columns:repeat(2,1fr)}.actions > :last-child{grid-column:1/-1}}
+@media (max-width:620px){.actions{grid-template-columns:repeat(2,1fr)}}
 .btn{font-family:var(--font-body);font-weight:700;font-size:16px;color:var(--ink);background:var(--parch);border:3px solid var(--wood);box-shadow:inset 0 -4px 0 var(--parch-2),0 3px 0 var(--wood);padding:10px 14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px}
 .btn:hover{filter:brightness(1.05)}
 .btn:active{transform:translateY(3px);box-shadow:inset 0 -2px 0 var(--parch-2),0 0 0 var(--wood)}
@@ -512,8 +513,7 @@ details.caps .form-grid{margin-top:10px}
 .chk{display:flex;gap:10px;align-items:flex-start;font-size:15px;cursor:pointer}.chk input{width:20px;height:20px;margin-top:2px;flex:none}
 .modal h3{font-family:var(--font-display);font-size:14px;margin:6px 0 0}
 </style>
-</head>
-<body>
+
 <div class="wrap">
   <header class="top">
     <div class="brand">
@@ -1719,7 +1719,7 @@ function popHTML(h){
   const nextFor = ref => dueList(st, addDays(t, 400)).find(e => e.ref === ref);
   const payBtns = e => e ? `<div class="row"><button class="btn small gold" data-act="pay-event" data-key="${esc(e.key)}">${h.kind === "loan" ? "Smash it · Pay" : "Pay"}</button><button class="btn small ghost" data-act="mark-paid" data-key="${esc(e.key)}">Done</button></div>` : "";
   const dueLine = e => e ? `<span>Next: <b>${e.est ? "~" : ""}${fmt(e.amount)}</b> · ${short(e.date)} ${statusPill(e)}</span>` : `<span class="muted">Nothing due soon.</span>`;
-  if (h.kind === "home") return `<h4>${st.profile.name ? esc(st.profile.name) + "'s cottage" : "Your cottage"}</h4><span class="who">CASH ON HAND</span><span class="big">${fmt(n0(st.cash))}</span><div class="row"><button class="btn small" data-act="open" data-kind="spend">Log spending</button><button class="btn small gold" data-act="open" data-kind="payday">Payday!</button></div>`;
+  if (h.kind === "home") return `<h4>${st.profile.name ? esc(st.profile.name) + "'s cottage" : "Your cottage"}</h4><span class="who">CASH ON HAND</span><span class="big">${fmt(n0(st.cash))}</span><div class="row"><button class="btn small" data-act="open" data-kind="spend">Log spending</button><button class="btn small" data-act="open" data-kind="now">Edit</button><button class="btn small gold" data-act="open" data-kind="payday">Payday!</button></div>`;
   if (h.kind === "bank"){
     const b = findRow(h.key, st); if (!b) return "";
     const kind = { savings:"Savings", checking:"Everyday account", ewallet:"E-wallet" }[b.kind] || "Bank"; const g = n0(b.goal);
@@ -1882,6 +1882,7 @@ function undo(id){
   if (e.addedLoan) st.loans = st.loans.filter(l => l.id !== e.addedLoan);
   if (e.billRef){ const b = st.bills.find(x => x.id === e.billRef); if (b){ b.actual = b.actual || {}; b.notes = b.notes || {}; if (e.prevActual == null) delete b.actual[e.ym]; else b.actual[e.ym] = e.prevActual; if (e.prevNote == null) delete b.notes[e.ym]; else b.notes[e.ym] = e.prevNote; } }
   if (e.bnplId){ const b = st.bnpl.find(x => x.id === e.bnplId); if (b) b.paidCount = Math.max(0, n0(b.paidCount) - 1); }
+  for (const [bid, pc, bs] of e.bnplPrev || []){ const b = st.bnpl.find(x => x.id === bid); if (b){ b.paidCount = pc; b.balanceSet = bs; } }
   st.xp = Math.max(0, (st.xp || 0) - (e.xp || 0));
   st.log.splice(i, 1); scheduleSave(); render(); toast("Undone. Balances are back to how they were.");
 }
@@ -2341,11 +2342,12 @@ function ledgerPanel(){
   const st = V(); const L = st.log.slice(0, 80);
   const icon = { payday:"coin", move:"bag", bill:"scroll", spend:"heart" };
   return `<div class="frame pad section"><div class="row spread"><h2>Ledger</h2><span class="muted">Newest first</span></div>
-    <div class="list">${L.length ? L.map(e => `<div class="item"><span class="when">${short(e.date)}</span><span class="name">${esc(e.label)}<small>${e.type === "spend" ? esc(e.category || "") + " · " : ""}${e.type === "move" ? esc(acctName(e.from, st)) + " → " + esc(acctName(e.to, st)) : e.from ? "from " + esc(acctName(e.from, st)) : e.to ? "to " + esc(acctName(e.to, st)) : ""}</small></span><span class="amt ${e.type === "payday" || e.type === "income" ? "good" : ""}">${e.type === "payday" || e.type === "income" ? "+" : e.type === "move" ? "" : e.type === "adjust" ? "= " : "-"}${fmt(n0(e.amount))}</span>${(e.deltas || []).length || e.paidKey || e.bnplId || e.billRef ? `<button class="btn small ghost" data-act="undo" data-id="${e.id}">Undo</button>` : "<span></span>"}</div>`).join("") : `<p class="muted">Nothing yet. Paydays, transfers, bills and spending you record show up here.</p>`}</div></div>`;
+    <div class="list">${L.length ? L.map(e => `<div class="item"><span class="when">${short(e.date)}</span><span class="name">${esc(e.label)}<small>${e.type === "spend" ? esc(e.category || "") + " · " : ""}${e.type === "move" ? esc(acctName(e.from, st)) + " → " + esc(acctName(e.to, st)) : e.from ? "from " + esc(acctName(e.from, st)) : e.to ? "to " + esc(acctName(e.to, st)) : ""}</small></span><span class="amt ${e.type === "payday" || e.type === "income" ? "good" : ""}">${e.type === "payday" || e.type === "income" ? "+" : e.type === "move" ? "" : e.type === "adjust" ? "= " : "-"}${fmt(n0(e.amount))}</span>${(e.deltas || []).length || e.paidKey || e.bnplId || e.billRef || e.bnplPrev ? `<button class="btn small ghost" data-act="undo" data-id="${e.id}">Undo</button>` : "<span></span>"}</div>`).join("") : `<p class="muted">Nothing yet. Paydays, transfers, bills and spending you record show up here.</p>`}</div></div>`;
 }
 function stuffPanel(){
   const st = V(); const p = st.profile; const sample = mode === "sample";
-  return `<div class="frame pad section"><h2>Your character</h2>${avatarEditor()}</div>
+  return `${mode === "play" ? `<div class="frame pad section"><div class="nextup"><span class="ti lg" style="background:#fff1c4">${iconCanvas("coin", 26, "")}</span><div><span class="lab">QUICK FIX</span><b class="nm">Update all your balances at once</b><span>Type what you have now in cash, banks, jars, loans and pay-later.</span></div><div class="r"><button class="btn small gold" data-act="open" data-kind="now">Update balances</button></div></div></div>` : ""}
+    <div class="frame pad section"><h2>Your character</h2>${avatarEditor()}</div>
     <div class="frame pad section"><h2>You & your pay</h2>
       <div class="form-grid"><label class="fld w2" for="s-name"><span>Name</span><input id="s-name" data-pf="name" type="text" value="${esc(p.name)}"></label>
       <label class="fld" for="s-cur"><span>Currency</span><select id="s-cur" data-pf="currency">${CURRENCIES.map(c => `<option value="${c}" ${c === p.currency ? "selected" : ""}>${CUR_NAMES(c)}</option>`).join("")}</select></label>
@@ -2430,6 +2432,7 @@ function openModal(kind, arg){
   const st = V(); const box = $("#modalBody"); let html = "";
   if (kind === "profiles"){ box.innerHTML = profilesModal(); $("#modal").hidden = false; paintAvatars(); return; }
   if (kind === "fresh"){ box.innerHTML = freshHTML(); $("#modal").hidden = false; return; }
+  if (kind === "now"){ box.innerHTML = nowHTML(); $("#modal").hidden = false; const f = box.querySelector("input"); if (f) setTimeout(() => f.focus(), 30); return; }
   if (kind === "recap"){ box.innerHTML = recapHTML(arg || today().slice(0, 7)); $("#modal").hidden = false; box.querySelectorAll("canvas.pip").forEach(c => drawMap(c, PIP)); paintIcons(box); return; }
   if (kind === "payday"){
     const M = metrics(st); const sv = defaultSaveAcct();
@@ -2717,7 +2720,7 @@ function render(){
       <div class="stat frame"><span class="lab">Still owed</span><b class="num ${M.debt > 0 ? "warn" : "good"}">${fmt(M.debt)}</b><small>${st.loans.filter(l => n0(l.balance) > 0).length} loans · ${M.activeBnpl.length} pay-later</small></div>
       <div class="stat frame"><span class="lab">Next payday</span><b class="num">${np ? (dtp === 0 ? "Today!" : dtp + (dtp === 1 ? " day" : " days")) : "—"}</b><small>${np ? short(np) + " · " + fmt(n0(st.profile.payAmount)) : "set your pay schedule"}</small></div>
       <div class="stat frame"><span class="lab">Safe to spend</span><b class="num ${M.safe < 0 ? "bad" : ""}">${fmt(M.safe)}</b><small>${M.safe > 0 ? "≈ " + fmt(M.safe / M.daysToPay) + "/day until payday" : M.owedBeforePay > 0 ? "bills due before payday need this" : "until payday"}</small></div>`;
-    $("#actions").innerHTML = `<button class="btn gold" data-act="open" data-kind="payday">${iconCanvas("coin")}Payday!</button><button class="btn" data-act="open" data-kind="money">${iconCanvas("star")}Got money</button><button class="btn green" data-act="open" data-kind="move">${iconCanvas("bag")}Move money</button><button class="btn" data-act="open" data-kind="bill">${iconCanvas("scroll")}Pay a bill</button><button class="btn" data-act="open" data-kind="spend">${iconCanvas("heart")}Log spending</button>`;
+    $("#actions").innerHTML = `<button class="btn gold" data-act="open" data-kind="payday">${iconCanvas("coin")}Payday!</button><button class="btn" data-act="open" data-kind="now">${iconCanvas("scroll")}Update balances</button><button class="btn" data-act="open" data-kind="money">${iconCanvas("star")}Got money</button><button class="btn green" data-act="open" data-kind="move">${iconCanvas("bag")}Move money</button><button class="btn" data-act="open" data-kind="bill">${iconCanvas("scroll")}Pay a bill</button><button class="btn" data-act="open" data-kind="spend">${iconCanvas("heart")}Log spending</button>`;
     const TABS = [["calendar","Calendar"],["bills","Bills"],["insights","Insights"],["advisor","Advisor"],["quests","Quests"],["ledger","Ledger"],["stuff","My stuff"]];
     $("#tabs").innerHTML = TABS.map(([k, l]) => `<button class="tab" role="tab" aria-selected="${k === tab}" data-act="tab" data-tab="${k}">${l}</button>`).join("");
     panel.innerHTML = tab === "advisor" ? advisorPanel() : tab === "insights" ? insightsPanel() : tab === "quests" ? questsPanel() : tab === "ledger" ? ledgerPanel() : tab === "stuff" ? stuffPanel() : tab === "bills" ? billsPanel() : calendarPanel();
@@ -2785,7 +2788,7 @@ function aboutForm(st){
 /* --- money check-up: a planner's framework, scored --- */
 const GRADES = [[85,"A","Thriving"],[70,"B","Growing well"],[55,"C","Taking root"],[40,"D","Needs watering"],[0,"E","Storm season"]];
 function efTarget(st){ const A = about(st); return (A.dependents > 0 || A.household === "kids" || A.work === "self" || A.work === "ofw" || A.work === "mixed") ? 6 : 3; }
-function saveFlow(st, days = 30){ const from = addDays(today(), -days); let net = 0; for (const e of st.log){ if (!e.date || e.date < from) continue; for (const [k, d] of e.deltas || []) if (k && isSavings(k, st)) net += n0(d); } return r2(net); }
+function saveFlow(st, days = 30){ const from = addDays(today(), -days); let net = 0; for (const e of st.log){ if (!e.date || e.date < from || e.type === "adjust") continue; for (const [k, d] of e.deltas || []) if (k && isSavings(k, st)) net += n0(d); } return r2(net); }
 function checkup(st){
   st = st || V(); const M = metrics(st); const A = about(st); const c = st.profile.currency; const t = today();
   const areas = [];
@@ -2806,7 +2809,7 @@ function checkup(st){
   const nb = M.activeBnpl.length;
   add("costly", "Costly credit", !hi.length && !nb ? 100 : (hi.some(l => apr(l) >= 24) || nb >= 3) ? 20 : hi.length + nb >= 2 ? 40 : 60, !hi.length && !nb ? "None" : [hi.length ? hi.length + " high-rate" : "", nb ? nb + " pay-later" : ""].filter(Boolean).join(", "),
     !hi.length && !nb ? "No high-interest loans or pay-later plans running." : `${hi.length ? `${hi[0].name || "A loan"} charges ${rateLabel(hi[0])}. ` : ""}${nb ? `${nb} pay-later plan${nb > 1 ? "s are" : " is"} running. Each feels small, but they stack up and late fees bite.` : ""}`, 1);
-  const flow = saveFlow(st); const young = diffDays(st.since || t, t) < 21; const sr = M.income > 0 ? flow / M.income : null; const from30 = addDays(t, -30); const touched = st.log.some(e => e.date >= from30 && (e.deltas || []).some(([k]) => k && isSavings(k, st))); const tooEarly = sr == null || (!touched && flow === 0) || (young && flow <= 0);
+  const flow = saveFlow(st); const young = diffDays(st.since || t, t) < 21; const sr = M.income > 0 ? flow / M.income : null; const from30 = addDays(t, -30); const touched = st.log.some(e => e.date >= from30 && e.type !== "adjust" && (e.deltas || []).some(([k]) => k && isSavings(k, st))); const tooEarly = sr == null || (!touched && flow === 0) || (young && flow <= 0);
   add("habit", "Saving habit", tooEarly ? null : sr >= .2 ? 100 : sr >= .1 ? 80 : sr >= .05 ? 60 : sr > 0 ? 40 : 15, tooEarly ? (young ? "Too early" : "No moves yet") : (flow >= 0 ? "+" : "−") + fmt(Math.abs(flow), c),
     tooEarly ? "Pip judges this from money you move into savings. Use Move money whenever you save, and this area gets a score." : `In the last 30 days a net ${fmt(Math.abs(flow), c)} ${flow >= 0 ? "went into" : "came out of"} savings, ${Math.round(Math.abs(sr) * 100)}% of a month's pay. The classic target is 20%.`, 1);
   const over = Object.entries(st.caps || {}).filter(([k, v]) => n0(v) > 0 && (M.byCat[k] || 0) > n0(v)).map(([k]) => k + " is over its limit");
@@ -3120,6 +3123,37 @@ function advisorPanel(){
 }
 
 
+/* ---------- update balances: type what you have right now ---------- */
+function nowHTML(){
+  const st = V(); const A = accts(st);
+  const loans = st.loans.filter(l => n0(l.balance) > 0 || n0(l.orig) > 0); const plans = st.bnpl.filter(b => bnplActive(b) || n0(b.paidCount) > 0);
+  const inp = (id, name, label, v, extra = "") => `<label class="fld" for="${id}"><span>${esc(label)}</span><input id="${id}" name="${name}" type="number" inputmode="decimal" step="any" min="0" value="${v}" ${extra}></label>`;
+  return `<h2 id="mTitle">What I have right now</h2>
+    <p>Type how much is in each place today. Pip fixes the numbers to match. No need to log what happened in between.</p>
+    <form id="mform" data-kind="now" class="section">
+      <h3>Money</h3><div class="form-grid">${A.map(a => inp("nw-" + a.key.replace(":", "-"), "acct:" + a.key, a.name, r2(acctBal(a.key, st)))).join("")}</div>
+      ${loans.length ? `<h3>Loans · what's left to pay</h3><div class="form-grid">${loans.map(l => inp("nw-l-" + l.id, "loan:" + l.id, l.name || "Loan", r2(n0(l.balance)))).join("")}</div>` : ""}
+      ${plans.length ? `<h3>Pay-later plans</h3><div class="form-grid">${plans.map(b => isVar(b)
+        ? inp("nw-v-" + b.id, "vbnpl:" + b.id, (b.name || "Plan") + " · left to pay", r2(n0(b.balance)))
+        : inp("nw-p-" + b.id, "plan:" + b.id, (b.name || "Plan") + " · payments made (of " + n0(b.total) + ")", n0(b.paidCount), `step="1" inputmode="numeric" max="${n0(b.total)}"`)).join("")}</div>` : ""}
+      <p class="hint">This shows in your ledger as one "Balances updated" line with an Undo button. It doesn't count as spending or saving.</p>
+      <div class="row spread"><button type="button" class="btn small ghost" data-act="close">Cancel</button><button class="btn gold">Save my balances</button></div></form>`;
+}
+function submitNow(form){
+  const st = V(); const fd = new FormData(form); const deltas = []; const bnplPrev = [];
+  const val = k => { const v = fd.get(k); return v == null || String(v).trim() === "" ? null : r2(Math.max(0, n0(v))); };
+  for (const a of accts(st)){ const v = val("acct:" + a.key); if (v != null){ const d = r2(v - acctBal(a.key, st)); if (Math.abs(d) >= .005) deltas.push([a.key, d]); } }
+  for (const l of st.loans){ const v = val("loan:" + l.id); if (v != null){ const d = r2(v - n0(l.balance)); if (Math.abs(d) >= .005) deltas.push(["loan:" + l.id, d]); } }
+  for (const b of st.bnpl){
+    const v = val("vbnpl:" + b.id); if (v != null){ const d = r2(v - n0(b.balance)); if (Math.abs(d) >= .005){ deltas.push(["bnpl:" + b.id, d]); if (!b.balanceSet){ bnplPrev.push([b.id, n0(b.paidCount), false]); b.balanceSet = true; } } }
+    const p = val("plan:" + b.id); if (p != null){ const pc = Math.min(n0(b.total), Math.round(p)); if (pc !== n0(b.paidCount)){ bnplPrev.push([b.id, n0(b.paidCount), !!b.balanceSet]); b.paidCount = pc; } }
+  }
+  if (!deltas.length && !bnplPrev.length){ closeModal(); toast("Everything already matches. Nothing to change."); return; }
+  const total = r2(sum(accts(st), a => acctBal(a.key, st)) + sum(deltas.filter(([k]) => !k.startsWith("loan:") && !k.startsWith("bnpl:")), ([, d]) => d));
+  commit({ type:"adjust", amount: total, label:"Balances updated", deltas, bnplPrev: bnplPrev.length ? bnplPrev : undefined, xp:2 });
+  closeModal(); render(); burst(128, 70, 14); toast(`Saved! Your money now adds up to ${fmt(total)}.`);
+}
+
 /* ---------- fresh start: count from today, keep everything set up ---------- */
 const pastInstallments = (b, t) => { let n = 0; if (!b.firstDate) return 0; for (let i = 0; i < n0(b.total) && i < 120; i++){ const d = b.freq === "biweekly" ? addDays(b.firstDate, 14 * i) : addMonths(b.firstDate, i); if (d < t) n++; else break; } return n; };
 function freshHTML(){
@@ -3251,7 +3285,7 @@ document.addEventListener("click", ev => {
 $("#modal").addEventListener("click", e => { if (e.target.id === "modal") closeModal(); });
 document.addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.caps")) capsOpen = e.target.open; }, true);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#modal").hidden) closeModal(); });
-document.addEventListener("submit", e => { if (e.target.id === "mform"){ e.preventDefault(); if (e.target.dataset.kind === "fresh") submitFresh(e.target); else submitModal(e.target); } if (e.target.id === "chatForm"){ e.preventDefault(); const i = $("#chatIn"); const q = i ? i.value : ""; if (i) i.value = ""; aiAsk(q); } });
+document.addEventListener("submit", e => { if (e.target.id === "mform"){ e.preventDefault(); if (e.target.dataset.kind === "fresh") submitFresh(e.target); else if (e.target.dataset.kind === "now") submitNow(e.target); else submitModal(e.target); } if (e.target.id === "chatForm"){ e.preventDefault(); const i = $("#chatIn"); const q = i ? i.value : ""; if (i) i.value = ""; aiAsk(q); } });
 document.addEventListener("change", e => {
   const t = e.target;
   if (t.id === "ln-freq"){ $("#lnBox").innerHTML = loanFields(t.value); updateLoanPrev(); return; }

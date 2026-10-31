@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached so the village opens without a connection.
 // App files are fetched network-first so new versions show up right away when online.
-const CACHE = "coinleaf-v2";
+const CACHE = "coinleaf-v3";
 const SHELL = ["./", "index.html", "config.js", "cloud.js", "vendor/supabase.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
